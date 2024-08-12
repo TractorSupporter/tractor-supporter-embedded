@@ -3,17 +3,33 @@
 
 //----------------------------ProgramLogic
 #define nBuffer 50
+#define SOUND_SPEED 0.0343 // cm/s
+#define TRIG_PIN = 5;
+#define ECHO_PIN = 18;
 extern const char * ssid; 
 extern const char * pwd;
 extern const char *udpAddress;
 extern const int udpPort;
 WiFiUDP udp;
-long i=1;
+long i = 1;
 char iString[nBuffer] = "hello world";
 char bufferData[nBuffer] = "hello world";
+double distanceMeasured = 0;
+SemaphoreHandle_t semaphore;
+TaskHandle_t distanceMeasureTaskHandle = NULL;
 
 void setup(){
   Serial.begin(115200);
+
+  semaphore = xSemaphoreCreateMutex();
+  if (!semaphore){
+    Serial.println("Mutex creation failed");
+    while(1);
+  }
+
+  setUpPins();
+
+  xTaskCreate(distanceMeasureTask, "Distance Measure Task", 10000, NULL, 1, &distanceMeasureTaskHandle);
 
   connectToWifi();
 
@@ -26,6 +42,28 @@ void loop(){
   receivePacketFromServer();
   
   delay(900);
+}
+
+void setUpPins(){
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+}
+
+void distanceMeasureTask(void *params){
+  while(true){
+    double signalSendTime = 0;
+    double signalReceivedTime = 0;
+
+    if (xSemaphoreTake(semaphore, portMAX_DELAY)){
+      distanceMeasured = (signalReceivedTime - signalSendTime) * SOUND_SPEED / 2.0;
+      Serial.print("Distance Measure Task: distance: ");
+      Serial.println(distanceMeasured);
+    }
+    xSemaphoreGive(semaphore);
+
+
+    delay(501);
+  }
 }
 
 void connectToWifi(){

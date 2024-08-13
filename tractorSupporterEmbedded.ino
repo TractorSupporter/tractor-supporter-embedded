@@ -1,5 +1,6 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
+#include <ArduinoJson.h>
 
 //----------------------------ProgramLogic
 #define nBuffer 50
@@ -41,7 +42,7 @@ void loop(){
 
   receivePacketFromServer();
   
-  delay(900);
+  delay(201);
 }
 
 void setUpPins(){
@@ -66,12 +67,12 @@ void distanceMeasureTask(void *params){
 
     if (xSemaphoreTake(semaphore, portMAX_DELAY)){
       distanceMeasured = duration * SOUND_SPEED / 2.0;
-      Serial.print("Distance Measure Task: distance: ");
-      Serial.println(distanceMeasured);
+      // Serial.print("Distance Measure Task: distance: ");
+      // Serial.println(distanceMeasured);
     }
     xSemaphoreGive(semaphore);
 
-    delay(201);
+    delay(200);
   }
 }
 
@@ -94,12 +95,21 @@ void connectToWifi(){
 }
 
 void preparePacketForServer(){
+  StaticJsonDocument<200> packetData;
+  
+  packetData["distanceMeasured"] = distanceMeasured;
+
   sprintf(bufferData, "[%s]    idx: %d", iString, i++);
-  Serial.print("Sending to server: ");
-  Serial.println(bufferData);
+  packetData["extraMessage"] = bufferData;
+
+  String packetDataSerialized;
+  serializeJson(packetData, packetDataSerialized);
+
+  Serial.print("Data for the server: ");
+  Serial.println(packetDataSerialized);
 
   udp.beginPacket(udpAddress, udpPort);
-  udp.print(bufferData);
+  udp.print(packetDataSerialized);
   udp.endPacket();
   
   memset(bufferData, 0, nBuffer);

@@ -3,9 +3,9 @@
 
 //----------------------------ProgramLogic
 #define nBuffer 50
-#define SOUND_SPEED 0.0343 // cm/s
-#define TRIG_PIN = 5;
-#define ECHO_PIN = 18;
+#define SOUND_SPEED 0.0343 // cm/microsecond
+#define TRIG_PIN 5
+#define ECHO_PIN 18
 extern const char * ssid; 
 extern const char * pwd;
 extern const char *udpAddress;
@@ -51,18 +51,27 @@ void setUpPins(){
 
 void distanceMeasureTask(void *params){
   while(true){
-    double signalSendTime = 0;
-    double signalReceivedTime = 0;
+    digitalWrite(TRIG_PIN, LOW);
+    delayMicroseconds(2);
+    digitalWrite(TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(TRIG_PIN, LOW);
+
+    // The pulseIn() function reads a HIGH or a LOW pulse on a pin. 
+    // It accepts as arguments the pin and the state of the pulse (either HIGH or LOW). 
+    // It returns the length of the pulse in microseconds. 
+    // The pulse length corresponds to the time it took to 
+    //  travel to the object plus the time traveled on the way back.
+    double duration = pulseIn(ECHO_PIN, HIGH);
 
     if (xSemaphoreTake(semaphore, portMAX_DELAY)){
-      distanceMeasured = (signalReceivedTime - signalSendTime) * SOUND_SPEED / 2.0;
+      distanceMeasured = duration * SOUND_SPEED / 2.0;
       Serial.print("Distance Measure Task: distance: ");
       Serial.println(distanceMeasured);
     }
     xSemaphoreGive(semaphore);
 
-
-    delay(501);
+    delay(201);
   }
 }
 

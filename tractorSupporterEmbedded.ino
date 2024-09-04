@@ -1,19 +1,36 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
+#include <ArduinoJson.h>
 
 //----------------------------ProgramLogic
 #define nBuffer 50
+#define SOUND_SPEED 0.0343 // cm/microsecond
+#define TRIG_PIN 5
+#define ECHO_PIN 18
 extern const char * ssid; 
 extern const char * pwd;
 extern const char *udpAddress;
 extern const int udpPort;
 WiFiUDP udp;
-long i=1;
+long i = 1;
 char iString[nBuffer] = "hello world";
 char bufferData[nBuffer] = "hello world";
+double distanceMeasured = 0;
+SemaphoreHandle_t semaphore;
+TaskHandle_t distanceMeasureTaskHandle = NULL;
 
 void setup(){
   Serial.begin(115200);
+
+  semaphore = xSemaphoreCreateMutex();
+  if (!semaphore){
+    Serial.println("Mutex creation failed");
+    while(1);
+  }
+
+  setUpPins();
+
+  xTaskCreate(distanceMeasureTask, "Distance Measure Task", 10000, NULL, 1, &distanceMeasureTaskHandle);
 
   connectToWifi();
 
@@ -25,7 +42,38 @@ void loop(){
 
   receivePacketFromServer();
   
-  delay(900);
+  delay(201);
+}
+
+void setUpPins(){
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+}
+
+void distanceMeasureTask(void *params){
+  while(true){
+    digitalWrite(TRIG_PIN, LOW);
+    delayMicroseconds(2);
+    digitalWrite(TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(TRIG_PIN, LOW);
+
+    // The pulseIn() function reads a HIGH or a LOW pulse on a pin. 
+    // It accepts as arguments the pin and the state of the pulse (either HIGH or LOW). 
+    // It returns the length of the pulse in microseconds. 
+    // The pulse length corresponds to the time it took to 
+    //  travel to the object plus the time traveled on the way back.
+    double duration = pulseIn(ECHO_PIN, HIGH);
+
+    if (xSemaphoreTake(semaphore, portMAX_DELAY)){
+      distanceMeasured = duration * SOUND_SPEED / 2.0;
+      // Serial.print("Distance Measure Task: distance: ");
+      // Serial.println(distanceMeasured);
+    }
+    xSemaphoreGive(semaphore);
+
+    delay(200);
+  }
 }
 
 void connectToWifi(){
@@ -47,12 +95,21 @@ void connectToWifi(){
 }
 
 void preparePacketForServer(){
+  StaticJsonDocument<200> packetData;
+  
+  packetData["distanceMeasured"] = distanceMeasured;
+
   sprintf(bufferData, "[%s]    idx: %d", iString, i++);
-  Serial.print("Sending to server: ");
-  Serial.println(bufferData);
+  packetData["extraMessage"] = bufferData;
+
+  String packetDataSerialized;
+  serializeJson(packetData, packetDataSerialized);
+
+  Serial.print("Data for the server: ");
+  Serial.println(packetDataSerialized);
 
   udp.beginPacket(udpAddress, udpPort);
-  udp.print(bufferData);
+  udp.print(packetDataSerialized);
   udp.endPacket();
   
   memset(bufferData, 0, nBuffer);

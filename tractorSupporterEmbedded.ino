@@ -8,6 +8,7 @@
 #define TRIG_PIN 5
 #define ECHO_PIN 18
 #define ALARM_SIGNALS_COUNT 8
+#define ALARM_DISTANCE_THRESHOLD 113
 extern const char * ssid; 
 extern const char * pwd;
 extern const char *udpAddress;
@@ -122,7 +123,7 @@ void distanceMeasureTask(void *params){
     }
     xSemaphoreGive(mutex);
 
-    if (distanceMeasured < 113.8){
+    if (distanceMeasured < ALARM_DISTANCE_THRESHOLD){
       IncrementAlarmCount();
     }
 

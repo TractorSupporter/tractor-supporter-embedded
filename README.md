@@ -10,5 +10,5 @@
   
   // IP address to send UDP data to (address of the server).
   const char* udpAddress = ""; // your server (PC) IPv4
-  const int udpPort = 0; // server port```
+  const int udpPort = 8080; // server port```
 - Click upload button

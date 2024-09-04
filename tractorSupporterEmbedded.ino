@@ -7,6 +7,7 @@
 #define SOUND_SPEED 0.0343 // cm/microsecond
 #define TRIG_PIN 5
 #define ECHO_PIN 18
+#define ALARM_SIGNALS_COUNT 8
 extern const char * ssid; 
 extern const char * pwd;
 extern const char *udpAddress;
@@ -15,24 +16,18 @@ WiFiUDP udp;
 long i = 1;
 char iString[nBuffer] = "hello world";
 char bufferData[nBuffer] = "hello world";
-double distanceMeasured = 0;
-SemaphoreHandle_t semaphore;
-TaskHandle_t distanceMeasureTaskHandle = NULL;
+
 
 void setup(){
   Serial.begin(115200);
 
-  semaphore = xSemaphoreCreateMutex();
-  if (!semaphore){
-    Serial.println("Mutex creation failed");
-    while(1);
-  }
-
   setUpPins();
 
-  xTaskCreate(distanceMeasureTask, "Distance Measure Task", 10000, NULL, 1, &distanceMeasureTaskHandle);
-
   connectToWifi();
+
+  createDistanceMeasuringTask();
+
+  createAlarmingTask();
 
   udp.begin(udpPort);
 }
@@ -45,6 +40,61 @@ void loop(){
   delay(201);
 }
 
+TaskHandle_t xAlarmTaskHandle = NULL;
+
+void AlarmingTask(void* params){
+  uint32_t ulNotifiedValue = 0;
+
+  while (true){
+
+    do{
+      xTaskNotifyWait(0x00, 0x00, &ulNotifiedValue, portMAX_DELAY);
+    } while (ulNotifiedValue < ALARM_SIGNALS_COUNT);
+    
+    while (ulNotifiedValue > 0){
+      Serial.println("ALARM");
+      ulNotifiedValue--;
+      delayMicroseconds(50);
+    }
+  }
+}
+
+void createAlarmingTask(){
+  xTaskCreate(
+        AlarmingTask,            // Task function
+        "AlarmingTask",          // Task name
+        configMINIMAL_STACK_SIZE, // Stack size
+        NULL,                 // Task parameters
+        tskIDLE_PRIORITY + 1, // Task priority
+        &xAlarmTaskHandle     // Task handle
+    );
+}
+
+void IncrementAlarmCount() {
+    if (xAlarmTaskHandle != NULL) {
+        // Increment the notification value by 1
+        xTaskNotify(
+            xAlarmTaskHandle,
+            1,            // Increment the notification value by 1
+            eIncrement    // The increment action
+        );
+    }
+}
+
+double distanceMeasured = -1;
+SemaphoreHandle_t mutex;
+TaskHandle_t distanceMeasureTaskHandle = NULL;
+
+void createDistanceMeasuringTask(){
+  mutex = xSemaphoreCreateMutex();\
+  if (!mutex){
+    Serial.println("Mutex creation failed");
+    while(1);
+  }
+
+  xTaskCreate(distanceMeasureTask, "Distance Measure Task", 10000, NULL, 1, &distanceMeasureTaskHandle);
+}
+ 
 void setUpPins(){
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
@@ -65,14 +115,18 @@ void distanceMeasureTask(void *params){
     //  travel to the object plus the time traveled on the way back.
     double duration = pulseIn(ECHO_PIN, HIGH);
 
-    if (xSemaphoreTake(semaphore, portMAX_DELAY)){
+    if (xSemaphoreTake(mutex, portMAX_DELAY)){
       distanceMeasured = duration * SOUND_SPEED / 2.0;
       // Serial.print("Distance Measure Task: distance: ");
       // Serial.println(distanceMeasured);
     }
-    xSemaphoreGive(semaphore);
+    xSemaphoreGive(mutex);
 
-    delay(200);
+    if (distanceMeasured < 113.8){
+      IncrementAlarmCount();
+    }
+
+    delay(300);
   }
 }
 

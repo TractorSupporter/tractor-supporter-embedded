@@ -28,8 +28,6 @@ void setup(){
 
   createDistanceMeasuringTask();
 
-  createAlarmingTask();
-
   udp.begin(udpPort);
 }
 
@@ -39,47 +37,6 @@ void loop(){
   receivePacketFromServer();
   
   delay(201);
-}
-
-TaskHandle_t xAlarmTaskHandle = NULL;
-
-void AlarmingTask(void* params){
-  uint32_t ulNotifiedValue = 0;
-
-  while (true){
-
-    do{
-      xTaskNotifyWait(0x00, 0x00, &ulNotifiedValue, portMAX_DELAY);
-    } while (ulNotifiedValue < ALARM_SIGNALS_COUNT);
-    
-    while (ulNotifiedValue > 0){
-      Serial.println("ALARM");
-      ulNotifiedValue--;
-      delayMicroseconds(50);
-    }
-  }
-}
-
-void createAlarmingTask(){
-  xTaskCreate(
-        AlarmingTask,            // Task function
-        "AlarmingTask",          // Task name
-        configMINIMAL_STACK_SIZE, // Stack size
-        NULL,                 // Task parameters
-        tskIDLE_PRIORITY + 1, // Task priority
-        &xAlarmTaskHandle     // Task handle
-    );
-}
-
-void IncrementAlarmCount() {
-    if (xAlarmTaskHandle != NULL) {
-        // Increment the notification value by 1
-        xTaskNotify(
-            xAlarmTaskHandle,
-            1,            // Increment the notification value by 1
-            eIncrement    // The increment action
-        );
-    }
 }
 
 double distanceMeasured = -1;
@@ -122,10 +79,6 @@ void distanceMeasureTask(void *params){
       // Serial.println(distanceMeasured);
     }
     xSemaphoreGive(mutex);
-
-    if (distanceMeasured < ALARM_DISTANCE_THRESHOLD){
-      IncrementAlarmCount();
-    }
 
     delay(300);
   }

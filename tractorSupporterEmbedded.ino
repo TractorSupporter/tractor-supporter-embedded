@@ -1,133 +1,59 @@
-#include <WiFi.h>
-#include <WiFiUdp.h>
-#include <ArduinoJson.h>
+// in RPLidar.h and RPLidar.h begin function has to be changed from bool to void type
+// 
+// they can be installed with modified ZIP file from https://dronebotworkshop.com/getting-started-with-lidar/
+//
+// code based on https://github.com/robopeak/rplidar_arduino and https://lingshunlab.com/book/esp32/esp32-use-rplidar-a1
 
-//----------------------------ProgramLogic
-#define nBuffer 50
-#define SOUND_SPEED 0.0343 // cm/microsecond
-#define TRIG_PIN 5
-#define ECHO_PIN 18
-#define ALARM_SIGNALS_COUNT 8
-#define ALARM_DISTANCE_THRESHOLD 113
-extern const char * ssid; 
-extern const char * pwd;
-extern const char *udpAddress;
-extern const int udpPort;
-WiFiUDP udp;
-long i = 1;
-char iString[nBuffer] = "hello world";
-char bufferData[nBuffer] = "hello world";
+#include <RPLidar.h>
 
+RPLidar lidar;
 
-void setup(){
+#define RPLIDAR_MOTOR 14 
+
+void setup() {
   Serial.begin(115200);
 
-  setUpPins();
+  Serial2.begin(115200, SERIAL_8N1, 16, 17);
+  lidar.begin(Serial2);
 
-  connectToWifi();
+  pinMode(RPLIDAR_MOTOR, OUTPUT);
+  delay(1000);
 
-  createDistanceMeasuringTask();
-
-  udp.begin(udpPort);
-}
-
-void loop(){
-  preparePacketForServer();
-
-  receivePacketFromServer();
+  lidar.startScan();
+  digitalWrite(RPLIDAR_MOTOR, HIGH);
+  delay(1000);
+  Serial.println("END OF SETUP");
   
-  delay(201);
 }
 
-double distanceMeasured = -1;
-SemaphoreHandle_t mutex;
-TaskHandle_t distanceMeasureTaskHandle = NULL;
+void loop() {
+  if (IS_OK(lidar.waitPoint())) {
+    Serial.println("IF");
+    float distance = lidar.getCurrentPoint().distance;
 
-void createDistanceMeasuringTask(){
-  mutex = xSemaphoreCreateMutex();\
-  if (!mutex){
-    Serial.println("Mutex creation failed");
-    while(1);
-  }
+    float angle    = lidar.getCurrentPoint().angle; 
 
-  xTaskCreate(distanceMeasureTask, "Distance Measure Task", 10000, NULL, 1, &distanceMeasureTaskHandle);
-}
- 
-void setUpPins(){
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-}
+    bool  startBit = lidar.getCurrentPoint().startBit; 
 
-void distanceMeasureTask(void *params){
-  while(true){
-    digitalWrite(TRIG_PIN, LOW);
-    delayMicroseconds(2);
-    digitalWrite(TRIG_PIN, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(TRIG_PIN, LOW);
+    byte  quality  = lidar.getCurrentPoint().quality; 
 
-    // The pulseIn() function reads a HIGH or a LOW pulse on a pin. 
-    // It accepts as arguments the pin and the state of the pulse (either HIGH or LOW). 
-    // It returns the length of the pulse in microseconds. 
-    // The pulse length corresponds to the time it took to 
-    //  travel to the object plus the time traveled on the way back.
-    double duration = pulseIn(ECHO_PIN, HIGH);
-
-    if (xSemaphoreTake(mutex, portMAX_DELAY)){
-      distanceMeasured = duration * SOUND_SPEED / 2.0;
-      // Serial.print("Distance Measure Task: distance: ");
-      // Serial.println(distanceMeasured);
+    if(angle > 0 and angle < 100 ){
+      Serial.print(angle);
+      Serial.print(" | ");
+      Serial.println(distance);
     }
-    xSemaphoreGive(mutex);
+  } else {
+    Serial.println("ELSE");
+    digitalWrite(RPLIDAR_MOTOR, LOW);
 
-    delay(300);
-  }
-}
+    rplidar_response_device_info_t info;
+    if (IS_OK(lidar.getDeviceInfo(info, 100))) {
+      Serial.println("INFO DETECTED");
 
-void connectToWifi(){
-  WiFi.persistent(false);
-  WiFi.begin(ssid, pwd);
+       lidar.startScan();
 
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-
-  Serial.println("");
-  Serial.print("Connected to ");
-  Serial.println(ssid);
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
-
-  delay(5000);
-}
-
-void preparePacketForServer(){
-  StaticJsonDocument<200> packetData;
-  
-  packetData["distanceMeasured"] = distanceMeasured;
-
-  sprintf(bufferData, "[%s]    idx: %d", iString, i++);
-  packetData["extraMessage"] = bufferData;
-
-  String packetDataSerialized;
-  serializeJson(packetData, packetDataSerialized);
-
-  Serial.print("Data for the server: ");
-  Serial.println(packetDataSerialized);
-
-  udp.beginPacket(udpAddress, udpPort);
-  udp.print(packetDataSerialized);
-  udp.endPacket();
-  
-  memset(bufferData, 0, nBuffer);
-}
-
-void receivePacketFromServer(){
-  udp.parsePacket();
-  if(udp.read(bufferData, 50) > 0){
-    Serial.print("Setting new message from server: ");
-    Serial.println((char *)bufferData);
-    sprintf(iString, "%s", bufferData);
+       digitalWrite(RPLIDAR_MOTOR, HIGH);
+       delay(1000);
+    }
   }
 }

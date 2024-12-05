@@ -1,4 +1,7 @@
 <b>How to run a program: </b>
+
+THIS IS JUST THE SENSOR COMMUNICATION
+
 - Open Arduino IDE
 - Perpare IDE for ESP32 development (set Board and Port)
 - Create secrets.ino file

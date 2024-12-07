@@ -38,7 +38,7 @@ char bufferData[nBuffer];
 unsigned long lastMessageTime = 0;
 unsigned long connectionCheckInterval = 1000;
 
-void serializeAndSend(const std::vector<Measurement> &measurements, const char* side);
+void serializeAndSend(const std::vector<Measurement> &measurements);
 void receivePacketFromServer();
 void connectionCheckSend();
 void connectToWifi();
@@ -96,13 +96,7 @@ void loop() {
           return a.angle < b.angle;
         });
 
-        std::vector<Measurement> left(measurements.begin(), measurements.begin() + 20);
-        std::vector<Measurement> middle(measurements.begin() + 20, measurements.begin() + 40);
-        std::vector<Measurement> right(measurements.begin() + 40, measurements.end());
-
-        serializeAndSend(left, "left");
-        serializeAndSend(middle, "middle");
-        serializeAndSend(right, "right");
+        serializeAndSend(measurements);
 
         measurements.clear();
       }
@@ -120,20 +114,18 @@ void loop() {
 }
 
 
-void serializeAndSend(const std::vector<Measurement> &measurements, const char* side) {
+void serializeAndSend(const std::vector<Measurement> &measurements) {
 
-  const int capacity = JSON_ARRAY_SIZE(20) + JSON_OBJECT_SIZE(3);
-  StaticJsonDocument<capacity> doc;
-  
-  doc["sensor"] = "lidarSensor";
-  doc["side"] = side;
-
-  JsonArray measurementArray = doc.createNestedArray("measurements");
+  String measurementsString = "";
   for (const auto &m : measurements) {
-    JsonObject obj = measurementArray.createNestedObject();
-    obj["angle"] = m.angle;
-    obj["distance"] = m.distance;
+    measurementsString += String(m.angle, 2) + ";" + String(m.distance, 2) + ";";
   }
+
+  const int capacity = JSON_OBJECT_SIZE(2);
+  StaticJsonDocument<capacity> doc;
+
+  doc["sensor"] = "lidarSensor";
+  doc["measurements"] = measurementsString;
 
   String serializedData;
   serializeJson(doc, serializedData);

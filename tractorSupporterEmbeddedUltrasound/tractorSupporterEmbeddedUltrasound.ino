@@ -7,9 +7,6 @@
 
 //----------------------------ProgramLogic
 #define nBuffer 50
-#define SOUND_SPEED 0.0343 // cm/microsecond
-#define TRIG_PIN 5
-#define ECHO_PIN 18
 
 #define UART_NUM UART_NUM_2
 #define RX_PIN 16

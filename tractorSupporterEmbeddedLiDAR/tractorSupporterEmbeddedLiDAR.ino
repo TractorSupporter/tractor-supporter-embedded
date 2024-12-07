@@ -174,8 +174,8 @@ void receivePacketFromServer() {
       return;
     }
     
-    if (doc.containsKey("lidarON")) {
-      lidarON = doc["lidarON"];
+    if (doc.containsKey("shouldRun")) {
+      lidarON = doc["shouldRun"];
       Serial.print("Updated lidarON: ");
       Serial.println(lidarON);
     } else {

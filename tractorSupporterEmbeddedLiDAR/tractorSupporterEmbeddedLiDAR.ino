@@ -148,6 +148,12 @@ void connectionCheckSend() {
     String serializedData;
     serializeJson(doc, serializedData);
 
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("WiFi disconnected. Attempting to reconnect...");
+      stopLidar();
+      connectToWifi();
+    }
+
     udp.beginPacket(udpAddress, udpPort);
     udp.print(serializedData);
     udp.endPacket();

@@ -104,7 +104,7 @@ void loop() {
     } else {
       Serial.println("ELSE");
       stopLidar();
-      sleep(1000);
+      delay(1000);
       startLidar();
     }
   }
